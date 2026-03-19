@@ -4,6 +4,7 @@ import threading
 import tkinter as tk
 from tkinter import filedialog, messagebox
 
+import exifread
 import numpy as np
 from PIL import Image, ImageSequence, ImageTk
 
@@ -55,6 +56,30 @@ def _show_gif(window, label, frames, index=0):
     window.after(100, lambda: _show_gif(window, label, frames, (index + 1) % len(frames)))
 
 
+def extraer_coord(file_path):
+    """Extract GPS latitude and longitude from EXIF data of an image file."""
+
+    def _convertir(item):
+        if "/" in item:
+            num, den = map(int, item.split("/"))
+            return float(num / den)
+        return int(item)
+
+    with open(file_path, "rb") as f:
+        tags = exifread.process_file(f)
+
+    lat_raw = tags["GPS GPSLatitude"].printable.strip("[]").replace(" ", "")
+    lon_raw = tags["GPS GPSLongitude"].printable.strip("[]").replace(" ", "")
+
+    lat_parts = [_convertir(x) for x in lat_raw.split(",")]
+    lon_parts = [_convertir(x) for x in lon_raw.split(",")]
+
+    latitude = lat_parts[0] + lat_parts[1] / 60 + lat_parts[2] / 3600
+    longitude = lon_parts[0] + lon_parts[1] / 60 + lon_parts[2] / 3600
+
+    return latitude, longitude
+
+
 def _abrir_mostrar(state, file_path, popup):
     """Background thread: load all 6 bands and prepare the display."""
     from src.image_processing.spectral_indices import calcIndices
@@ -62,6 +87,11 @@ def _abrir_mostrar(state, file_path, popup):
 
     w = state.widgets
     base = file_path[: -5]
+
+    try:
+        state.latitude, state.longitude = extraer_coord(file_path)
+    except Exception:
+        state.latitude, state.longitude = None, None
 
     img_principal = Image.open(base + "0.JPG").resize((Settings.IMG_WIDTH, Settings.IMG_HEIGHT))
     state.data_image = [np.array(img_principal)]

@@ -1,6 +1,11 @@
 import os
 from pathlib import Path
 
+try:
+    import torch  # type: ignore
+except Exception:
+    torch = None
+
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -85,7 +90,7 @@ class Settings:
     ]
 
     # ── Device ───────────────────────────────────────────────────
-    DEVICE = "cuda"
+    DEVICE = "cuda" if (torch is not None and torch.cuda.is_available()) else "cpu"
 
     @classmethod
     def ensure_dirs(cls):

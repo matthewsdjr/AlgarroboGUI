@@ -391,5 +391,15 @@ def _guardar_img(state):
 
 
 def _mapa(state):
-    """Pan map to image GPS coordinates (placeholder)."""
-    pass
+    """Pan the map widget to the GPS coordinates extracted from the loaded image."""
+    if not state.file_path:
+        messagebox.showinfo("Aviso", "Adjunte una imagen primero.")
+        return
+    if state.latitude is None or state.longitude is None:
+        messagebox.showwarning("Aviso", "No se encontraron coordenadas GPS en la imagen.")
+        return
+
+    mapa_widget = state.widgets.get("mapa_widget")
+    if mapa_widget:
+        mapa_widget.set_position(-state.latitude, -state.longitude, marker=True)
+        mapa_widget.set_zoom(18)
