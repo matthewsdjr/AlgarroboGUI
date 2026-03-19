@@ -1,0 +1,15 @@
+customtkinter
+Pillow
+numpy
+opencv-python
+scipy
+exifread
+tkintermapview
+segment-anything
+torch
+torchvision
+onnxruntime
+requests
+scikit-learn
+matplotlib
+seaborn

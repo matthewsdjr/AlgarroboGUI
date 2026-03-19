@@ -1,0 +1,26 @@
+{
+    "user22": {
+        "nombre": "user2",
+        "apellido": "user22",
+        "correo": "user@gmail.com",
+        "contrase\u00f1a": "b999205cdacd2c4516598d99b420d29786443e9908556a65f583a6fd4765ee4a"
+    },
+    "matthewsdjr": {
+        "nombre": "Matthews",
+        "apellido": "Juarez Rojas",
+        "correo": "matthews.djr@gmail.com",
+        "contrasena": "e127b3cb9212e5d979746c97e9d77efda07625d50ccf491618e9eb860793c6d5"
+    },
+    "wilson1": {
+        "nombre": "wilson",
+        "apellido": "Castro",
+        "correo": "wilson@gmail.com",
+        "contrasena": "e127b3cb9212e5d979746c97e9d77efda07625d50ccf491618e9eb860793c6d5"
+    },
+    "admin": {
+        "nombre": "admin",
+        "apellido": "admin",
+        "correo": "admin@gmail.com",
+        "contrasena": "8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918"
+    }
+}

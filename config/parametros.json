@@ -1,0 +1,12 @@
+{
+   "AlexNet": {
+      "lr": "0.0005",
+      "batch": "80",
+      "epochs": "20"
+   },
+   "AlgarroboNet": {
+      "lr": "0.0001",
+      "batch": "80",
+      "epochs": "30"
+   }
+}
