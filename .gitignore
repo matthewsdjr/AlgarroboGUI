@@ -29,6 +29,9 @@ models/algarrobonet/*.pth
 
 # Training data — too large for git
 data/DataStore227/
+data/DJI_202605120950_001_Grupo1forestal/
+data/DJI_202606051101_020/
+data/IMAGENES/
 
 # Logs
 *.log
