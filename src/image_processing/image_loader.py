@@ -1,5 +1,7 @@
 """Load and open multispectral drone images (JPG + TIF bands)."""
 
+import os
+import re
 import threading
 import tkinter as tk
 from tkinter import filedialog, messagebox
@@ -80,42 +82,119 @@ def extraer_coord(file_path):
     return latitude, longitude
 
 
+def _es_formato_dji(file_path):
+    """Return True if the file matches the DJI multispectral naming convention (e.g. DJI_20260512095234_0001_D.JPG)."""
+    filename = os.path.basename(file_path)
+    return bool(re.match(r"DJI_\d+_\d+_D\.(JPG|JPEG)$", filename, re.IGNORECASE))
+
+
+def _buscar_banda_dji(folder, seq, suffix):
+    """Find a DJI band file by sequence number, ignoring the timestamp part.
+
+    DJI saves the RGB and multispectral TIFs one second apart, so their
+    timestamps differ while the sequence number stays the same.
+    Matches files of the form: DJI_<timestamp>_<seq>_<suffix>
+    """
+    pattern = re.compile(
+        rf"DJI_\d+_{re.escape(seq)}_{re.escape(suffix)}$", re.IGNORECASE
+    )
+    matches = [f for f in os.listdir(folder) if pattern.match(f)]
+    return os.path.join(folder, matches[0]) if matches else None
+
+
+def _cargar_bandas_dji(file_path):
+    """Load all 6 bands for the DJI multispectral format and return them as a list of arrays.
+
+    Band layout (same as LPP format):
+      [0] RGB composite (JPG), [1] R, [2] G, [3] B, [4] RE, [5] NIR
+    Matching is done by sequence number (e.g. "0009"), not by timestamp,
+    because DJI saves the RGB and the TIF bands with slightly different timestamps.
+    Blue TIF is optional: if MS_B.TIF is absent, B is extracted from the RGB image.
+    """
+    folder = os.path.dirname(os.path.abspath(file_path))
+    filename = os.path.basename(file_path)
+
+    # Extract sequence number: DJI_<timestamp>_<seq>_D.JPG
+    m = re.match(r"DJI_\d+_(\d+)_D\.(JPG|JPEG)$", filename, re.IGNORECASE)
+    seq = m.group(1)  # e.g. "0009"
+
+    img_rgb = Image.open(file_path).resize((Settings.IMG_WIDTH, Settings.IMG_HEIGHT))
+    rgb_array = np.array(img_rgb)  # uint8 (H, W, 3)
+
+    bands = [None] * 6
+    bands[0] = rgb_array
+
+    for suffix, idx in (("MS_R.TIF", 1), ("MS_G.TIF", 2), ("MS_RE.TIF", 4), ("MS_NIR.TIF", 5)):
+        band_path = _buscar_banda_dji(folder, seq, suffix)
+        if band_path is None:
+            raise FileNotFoundError(
+                f"No se encontró la banda '{suffix}' para la secuencia '{seq}' en:\n{folder}"
+            )
+        img = Image.open(band_path).resize((Settings.IMG_WIDTH, Settings.IMG_HEIGHT))
+        bands[idx] = np.array(img)
+
+    # Blue band: use MS_B.TIF if present, otherwise extract from RGB for index computation
+    b_path = _buscar_banda_dji(folder, seq, "MS_B.TIF")
+    if b_path is not None:
+        img_b = Image.open(b_path).resize((Settings.IMG_WIDTH, Settings.IMG_HEIGHT))
+        bands[3] = np.array(img_b)
+        tiene_azul = True
+    else:
+        # Scale uint8 blue channel to uint16 range so spectral indices can still use it
+        bands[3] = (rgb_array[:, :, 2].astype(np.uint16) * 257)
+        tiene_azul = False
+
+    return bands, tiene_azul
+
+
 def _abrir_mostrar(state, file_path, popup):
     """Background thread: load all 6 bands and prepare the display."""
-    from src.image_processing.spectral_indices import calcIndices
+    from src.image_processing.spectral_indices import calcIndices, graficar_indices
     from src.image_processing.image_viewer import mostrar_imagen, bandas_independientes
 
     w = state.widgets
-    base = file_path[: -5]
 
     try:
         state.latitude, state.longitude = extraer_coord(file_path)
     except Exception:
         state.latitude, state.longitude = None, None
 
-    img_principal = Image.open(base + "0.JPG").resize((Settings.IMG_WIDTH, Settings.IMG_HEIGHT))
-    state.data_image = [np.array(img_principal)]
-
-    for i in range(1, 6):
-        img = Image.open(base + str(i) + ".TIF").resize(
-            (Settings.IMG_WIDTH, Settings.IMG_HEIGHT)
-        )
-        state.data_image.append(np.array(img))
+    if _es_formato_dji(file_path):
+        state.data_image, state.tiene_banda_azul = _cargar_bandas_dji(file_path)
+    else:
+        # LPP legacy format: user selects e.g. LPP_100.JPG
+        # base = file_path[:-5] strips "0.JPG" → loads LPP_100.JPG + LPP_101..105.TIF
+        state.tiene_banda_azul = True
+        base = file_path[:-5]
+        img_principal = Image.open(base + "0.JPG").resize((Settings.IMG_WIDTH, Settings.IMG_HEIGHT))
+        state.data_image = [np.array(img_principal)]
+        for i in range(1, 6):
+            img = Image.open(base + str(i) + ".TIF").resize(
+                (Settings.IMG_WIDTH, Settings.IMG_HEIGHT)
+            )
+            state.data_image.append(np.array(img))
 
     state.a, state.b, _ = np.shape(state.data_image[0])
     state.puntos_visibles = state.data_image[0].copy()
 
+    calcIndices(state, state.data_image)
     mostrar_imagen(state, state.data_image[0])
     w["lbl_img_selec"].configure(text=Settings.INDEX_LABELS[0])
     bandas_independientes(state, state.data_image)
 
     state.contorno = []
+    cmb_3_default = "NIR" if not state.tiene_banda_azul else "BLUE"
     w["cmb_1"].set("RED")
     w["cmb_2"].set("GREEN")
-    w["cmb_3"].set("BLUE")
+    w["cmb_3"].set(cmb_3_default)
     w["cmb_1"].config(state="normal")
     w["cmb_2"].config(state="normal")
     w["cmb_3"].config(state="normal")
+
+    p = Settings.INDEX_LABELS.index("RED") - 1
+    s = Settings.INDEX_LABELS.index("GREEN") - 1
+    t = Settings.INDEX_LABELS.index(cmb_3_default) - 1
+    graficar_indices(state, state.Indices, p, s, t)
 
     state.escala = {"x": state.b, "y": state.a}
     state.limites = {"x_1": 0, "y_1": 0, "x_2": 0, "y_2": 0}

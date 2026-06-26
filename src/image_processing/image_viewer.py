@@ -54,10 +54,13 @@ def bandas_independientes(state, datos):
     """Display R, G, B band thumbnails in the left panel."""
     w = state.widgets
     labels = [w["label_capa_red"], w["label_capa_green"], w["label_capa_blue"]]
+    thumb_w, thumb_h = int(1600 / 6), int(1300 / 6)
 
     for i in range(3):
-        visible = cv2.resize(datos[i + 1], (int(1600 / 6), int(1300 / 6)), interpolation=cv2.INTER_AREA) / 255
-        im_mostrar = Image.fromarray(visible.astype("uint8"))
+        band_idx = 5 if (i == 2 and not getattr(state, "tiene_banda_azul", True)) else i + 1
+        raw = cv2.resize(datos[band_idx], (thumb_w, thumb_h), interpolation=cv2.INTER_AREA)
+        normalized = cv2.normalize(raw, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
+        im_mostrar = Image.fromarray(normalized)
         visiblito = ImageTk.PhotoImage(image=im_mostrar)
         labels[i].configure(image=visiblito)
         labels[i].image = visiblito

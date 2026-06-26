@@ -10,7 +10,19 @@ Run:  python main.py
 
 import sys
 import os
+import ctypes
 import tkinter as tk
+
+# Declare Per-Monitor DPI awareness before Tk is created so Windows does not
+# bitmap-scale the window (which blurs the title bar and all text).
+if sys.platform == "win32":
+    try:
+        ctypes.windll.shcore.SetProcessDpiAwareness(2)
+    except Exception:
+        try:
+            ctypes.windll.user32.SetProcessDPIAware()
+        except Exception:
+            pass
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 

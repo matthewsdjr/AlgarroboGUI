@@ -20,11 +20,15 @@ def build_login_window(root, on_login_success):
     """
 
     root.title("Login")
-    root.geometry("1535x850")
+    sw = root.winfo_screenwidth()
+    sh = root.winfo_screenheight()
+    win_w = min(sw, 1535)
+    win_h = min(sh, 850)
+    root.geometry(f"{win_w}x{win_h}")
     root.resizable(False, False)
 
     # ── Background ───────────────────────────────────────────────
-    fondo = Image.open(str(Settings.FONDO_LOGIN))
+    fondo = Image.open(str(Settings.FONDO_LOGIN)).resize((win_w, win_h), Image.LANCZOS)
     foto = ImageTk.PhotoImage(fondo)
     panel = tk.Label(root, image=foto)
     panel.image = foto
@@ -82,6 +86,9 @@ def build_login_window(root, on_login_success):
         contraseña = password_entry.get().strip()
         if autenticar_usuario(usuario, contraseña):
             on_login_success()
+
+    username_entry.bind("<Return>", lambda e: _do_login())
+    password_entry.bind("<Return>", lambda e: _do_login())
 
     tk.Button(
         log_frame, text="Iniciar Sesión", command=_do_login,

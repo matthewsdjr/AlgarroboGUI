@@ -32,6 +32,7 @@ class AppState:
         self.flag_trazo: bool = False
         self.flag_sam: bool = False
         self.correction_done: bool = False
+        self.tiene_banda_azul: bool = True  # False when DJI format has no MS_B.TIF
 
         # ── Segmentation ────────────────────────────────────────
         self.contorno: list = []

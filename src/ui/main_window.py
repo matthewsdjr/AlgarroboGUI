@@ -37,12 +37,32 @@ def build_main_window(root, state):
     ventana = tk.Toplevel()
     ventana.title("Software de Algarrobo")
     ventana.state("zoomed")
-    ventana.geometry("1920x1000")
     try:
         ventana.iconbitmap(str(Settings.APP_ICON))
     except Exception:
         pass
     ventana.resizable(False, False)
+
+    # Compute scale factors from the actual maximised window size.
+    # The original layout was designed for 1920 × 1000 px; all hardcoded
+    # dimensions below are derived from these base values so the layout
+    # adapts to any screen resolution.
+    ventana.update()
+    ww = ventana.winfo_width()
+    wh = ventana.winfo_height()
+    if ww <= 1:  # safety fallback if update() hasn't resolved layout yet
+        ww = ventana.winfo_screenwidth()
+        wh = ventana.winfo_screenheight() - 80
+    sx = ww / 1920
+    sy = wh / 1000
+    half = ww // 2
+    img_w = int(800 * sx)
+    img_h = int(650 * sy)
+    bg_w = int(img_w * 1.1)
+    bg_h = int(img_h * 1.1)
+    btn_y = int(910 * sy)
+    # Max logo height = 80 % of the white space above the centred container
+    logo_max_h = max(40, int((wh - bg_h) / 2 * 0.80))
     ventana.protocol("WM_DELETE_WINDOW", root.destroy)
 
     w = state.widgets
@@ -137,14 +157,14 @@ def build_main_window(root, state):
     ayuda.add_command(label="Ayuda", image=icono_pregunta, compound="left")
 
     # ── Right panel: main image viewer ───────────────────────────
-    frame_imagen = tk.Frame(ventana, width=960, height=ventana.winfo_height(), bg="white")
-    frame_imagen.place(x=960, y=0)
+    frame_imagen = tk.Frame(ventana, width=half, height=ventana.winfo_height(), bg="white")
+    frame_imagen.place(x=half, y=0)
 
-    label_imagen_bg = ctk.CTkLabel(frame_imagen, width=int(800 * 1.1), height=int(650 * 1.1),
+    label_imagen_bg = ctk.CTkLabel(frame_imagen, width=bg_w, height=bg_h,
                                     corner_radius=50, bg_color="#ededed", text="")
     label_imagen_bg.place(relx=0.5, rely=0.5, anchor="center")
 
-    label_imagen = ctk.CTkLabel(frame_imagen, width=800, height=650, bg_color="#ededed", text="")
+    label_imagen = tk.Frame(frame_imagen, width=img_w, height=img_h, bg="#ededed")
     label_imagen.place(relx=0.5, rely=0.5, anchor="center")
 
     lbl_img_selec = ctk.CTkLabel(label_imagen_bg, width=20, text="",
@@ -180,7 +200,7 @@ def build_main_window(root, state):
     except Exception:
         lat, lon = -4.9032, -80.6827
 
-    mapa_widget = TkinterMapView(ttk_label_mapa, width=800, height=650)
+    mapa_widget = TkinterMapView(ttk_label_mapa, width=img_w, height=img_h)
     mapa_widget.pack(fill="both", expand=True)
     mapa_widget.set_position(lat, lon, marker=True)
     mapa_widget.set_tile_server(
@@ -188,23 +208,23 @@ def build_main_window(root, state):
     )
     w["mapa_widget"] = mapa_widget
 
-    notebook.place(x=0, y=0)
+    notebook.place(x=0, y=0, width=img_w, height=img_h)
 
     # Zoom / tool buttons
     boton_disminuir = ctk.CTkButton(frame_imagen, text="", width=10, image=icono_disminuir,
                                      fg_color="Teal", command=lambda: zoom_out(state))
     boton_disminuir.image = icono_disminuir
-    boton_disminuir.place(x=800, y=910)
+    boton_disminuir.place(x=int(800 * sx), y=btn_y)
 
     boton_aumentar = ctk.CTkButton(frame_imagen, text="", width=10, image=icono_aumentar,
                                     fg_color="Teal", command=lambda: zoom_in(state))
     boton_aumentar.image = icono_aumentar
-    boton_aumentar.place(x=850, y=910)
+    boton_aumentar.place(x=int(850 * sx), y=btn_y)
 
     boton_lapiz = ctk.CTkButton(frame_imagen, text="", width=10, image=icono_lapiz,
                                  fg_color="Teal", command=lambda: roi(state))
     boton_lapiz.image = icono_lapiz
-    boton_lapiz.place(x=900, y=910)
+    boton_lapiz.place(x=int(900 * sx), y=btn_y)
     w["boton_lapiz"] = boton_lapiz
 
     boton_siguiente = ctk.CTkButton(label_imagen_bg, text="", width=7, height=5,
@@ -220,17 +240,19 @@ def build_main_window(root, state):
     boton_atras.place(relx=0.05, rely=0.995, anchor="sw")
 
     # Logos
-    logo_prociencia_resized = logo_prociencia_img.resize((210, 140))
+    pro_w = int(logo_max_h * 210 / 140)
+    logo_prociencia_resized = logo_prociencia_img.resize((pro_w, logo_max_h), Image.LANCZOS)
     foto_prociencia = ImageTk.PhotoImage(logo_prociencia_resized)
     prociencia = tk.Label(frame_imagen, image=foto_prociencia, bg="white")
     prociencia.image = foto_prociencia
-    prociencia.place(x=720, y=0)
+    prociencia.place(x=half - pro_w - int(10 * sx), y=0)
 
-    logo_unf_resized = Image.open(str(Settings.LOGO_UNF)).resize((103, 131))
+    unf_w = int(logo_max_h * 103 / 131)
+    logo_unf_resized = Image.open(str(Settings.LOGO_UNF)).resize((unf_w, logo_max_h), Image.LANCZOS)
     foto_unf = ImageTk.PhotoImage(logo_unf_resized)
     logo_principal = tk.Label(frame_imagen, image=foto_unf, bg="white")
     logo_principal.image = foto_unf
-    logo_principal.place(x=160, y=0)
+    logo_principal.place(x=int(10 * sx), y=0)
 
     # Mouse bindings
     ttk_label_imagen.bind("<ButtonPress-3>", lambda e: punto(state, e))
@@ -239,26 +261,29 @@ def build_main_window(root, state):
     ttk_label_imagen.bind("<ButtonPress-1>", lambda e: mascara_presionado(state, e))
 
     # ── Left panel: band thumbnails + segmentation ───────────────
-    frame_indp = tk.Frame(ventana, width=960, height=ventana.winfo_height(), bg="white")
+    frame_indp = tk.Frame(ventana, width=half, height=ventana.winfo_height(), bg="white")
     frame_indp.place(x=0, y=0)
 
+    label_bg2 = ctk.CTkLabel(frame_indp, width=bg_w, height=bg_h,
+                              corner_radius=50, bg_color="#ededed", text="")
+    label_bg2.place(relx=0.5, rely=0.5, anchor="center")
+
+    label_indp2 = tk.Frame(frame_indp, width=img_w, height=img_h, bg="#ededed")
+    label_indp2.place(relx=0.5, rely=0.5, anchor="center")
+
+    # Title labels created AFTER the containers so they sit on top (higher z-order).
     texto_proj = '"Redes Convolucionales y Combinacionales de Bandas Espectrales'
     texto_2 = 'e Índices Vegetativos para Identificación de Árboles Plus de Algarrobo (Prosopis Pallida): '
     texto_3 = 'Aplicación de Técnicas Deep Learning e Imágenes Multiespectrales"'
 
+    title_font_size = max(10, int(13 * sx))
     for i, txt in enumerate([texto_proj, texto_2, texto_3]):
         ctk.CTkLabel(
             frame_indp, width=20, text=txt,
-            font=ctk.CTkFont(family="Arial", size=14, weight="bold"),
-            fg_color="transparent", text_color="black",
+            font=ctk.CTkFont(family="Arial", size=title_font_size, weight="bold"),
+            fg_color="white", text_color="black",
+            wraplength=int(half * 0.92),
         ).place(relx=0.5, rely=0.05 + i * 0.03, anchor="center")
-
-    label_bg2 = ctk.CTkLabel(frame_indp, width=int(800 * 1.1), height=int(650 * 1.1),
-                              corner_radius=50, bg_color="#ededed", text="")
-    label_bg2.place(relx=0.5, rely=0.5, anchor="center")
-
-    label_indp2 = ctk.CTkLabel(frame_indp, width=800, height=650, bg_color="#ededed", text="")
-    label_indp2.place(relx=0.5, rely=0.5, anchor="center")
 
     notebook_2 = ttk.Notebook(label_indp2, style="TNotebook")
     ttk_label_indep = ttk.Label(notebook_2, text="")
@@ -267,19 +292,19 @@ def build_main_window(root, state):
     ttk_label_segm.pack(fill="both", expand=True)
     notebook_2.add(ttk_label_indep, text="Independientes")
     notebook_2.add(ttk_label_segm, text="Segmentación")
-    notebook_2.place(x=0, y=0)
+    notebook_2.place(x=0, y=0, width=img_w, height=img_h)
 
     # Segmentation panel
-    bg_segm = 235 * np.ones((800, 800), np.uint8)
+    bg_segm = 235 * np.ones((img_h, img_w), np.uint8)
     bg_f_segm = ImageTk.PhotoImage(image=Image.fromarray(bg_segm))
     ttk_label_segm.configure(image=bg_f_segm)
     ttk_label_segm.image = bg_f_segm
 
     label_img_segm = tk.Label(ttk_label_segm, bg="#ededed")
-    label_img_segm.place(relx=0.5, rely=0.35, anchor="center")
+    label_img_segm.place(relx=0.5, rely=0.55, anchor="center")
     w["label_img_segm"] = label_img_segm
 
-    arr_segm = 225 * np.ones((450, 550), np.uint8)
+    arr_segm = 225 * np.ones((int(450 * sy), int(550 * sx)), np.uint8)
     foto_segm = ImageTk.PhotoImage(image=Image.fromarray(arr_segm))
     label_img_segm.configure(image=foto_segm)
     label_img_segm.image = foto_segm
@@ -288,22 +313,22 @@ def build_main_window(root, state):
                                    image=icono_siguiente, fg_color="#ededed",
                                    command=lambda: siguiente_seg(state))
     boton_sig_seg.image = icono_siguiente
-    boton_sig_seg.place(x=720, y=300, anchor="se")
+    boton_sig_seg.place(x=int(720 * sx), y=int(300 * sy), anchor="se")
 
     boton_atr_seg = ctk.CTkButton(ttk_label_segm, text="", width=7, height=5,
                                    image=icono_atras, fg_color="#ededed",
                                    command=lambda: anterior_seg(state))
     boton_atr_seg.image = icono_atras
-    boton_atr_seg.place(x=80, y=300, anchor="sw")
+    boton_atr_seg.place(x=int(80 * sx), y=int(300 * sy), anchor="sw")
 
     lbl_img_selec_seg = ctk.CTkLabel(ttk_label_segm, width=20, text="",
                                       font=ctk.CTkFont(family="Arial", size=14, weight="bold"),
                                       fg_color="#ededed", text_color="black")
-    lbl_img_selec_seg.place(x=400, y=40, anchor="center")
+    lbl_img_selec_seg.place(x=int(400 * sx), y=int(40 * sy), anchor="center")
     w["lbl_img_selec_seg"] = lbl_img_selec_seg
 
     # Independent band panel
-    bg_indep = 230 * np.ones((800, 800), np.uint8)
+    bg_indep = 230 * np.ones((img_h, img_w), np.uint8)
     bg_f = ImageTk.PhotoImage(image=Image.fromarray(bg_indep))
     ttk_label_indep.configure(image=bg_f)
     ttk_label_indep.image = bg_f
@@ -312,7 +337,7 @@ def build_main_window(root, state):
     label_capa_red.place(relx=0.5, rely=0.2, anchor="center")
     w["label_capa_red"] = label_capa_red
 
-    im_placeholder = 230 * np.ones((215, 250), np.uint8)
+    im_placeholder = 230 * np.ones((int(215 * sy), int(250 * sx)), np.uint8)
     _set_placeholder(label_capa_red, im_placeholder)
 
     label_capa_green = tk.Label(ttk_label_indep, bg="green")
