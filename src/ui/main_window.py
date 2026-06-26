@@ -71,6 +71,67 @@ TITULO = (
     'Pallida): Aplicación de Técnicas Deep Learning e Imágenes Multiespectrales"'
 )
 
+# User-facing help, shown in the Ayuda window. Each item: (emoji, title, [lines]).
+HELP_SECTIONS = [
+    ("👋", "Bienvenido", [
+        "Algarrobo analiza imágenes multiespectrales de dron y clasifica árboles de "
+        "algarrobo (Prosopis pallida).",
+        "Esta guía resume cómo usar cada herramienta de la interfaz.",
+    ]),
+    ("🧭", "La interfaz", [
+        "Encabezado superior con los logos institucionales y el título del proyecto.",
+        "Barra de herramientas: Abrir imagen, Bandas, Índices, Mapa, Segmentación, "
+        "Clasificación, Corrección, Entrenamiento y Guardar.",
+        "Visor central donde se muestra la imagen, los índices, el mapa o las máscaras.",
+        "Panel lateral que cambia según la herramienta activa.",
+    ]),
+    ("📂", "Abrir una imagen", [
+        "Pulsa «Abrir imagen» y selecciona la toma del dron.",
+        "Las bandas se cargan solas y se muestra la imagen principal (compuesta RGB).",
+    ]),
+    ("🛰", "Navegación de bandas", [
+        "Solo se muestran las bandas que entregó el dron; un contador indica la "
+        "posición (p. ej. RED · 2/6).",
+        "Cambia de banda con las flechas en pantalla o con el teclado (← / →).",
+        "Haz zoom con la rueda del mouse y desplázate arrastrando sobre la imagen.",
+    ]),
+    ("🌿", "Índices de vegetación", [
+        "Abre la pestaña Índices y elige un índice del menú.",
+        "Se dibuja con un mapa de color (rojo→verde) y una leyenda con la escala.",
+        "Pasa el cursor sobre la imagen para ver el valor del índice en cada píxel.",
+        "Disponibles: NDVI, GNDVI, NDRE, NGRDI, NGBDI, RVI y SCCI.",
+    ]),
+    ("✂", "Segmentación", [
+        "Manual: pulsa «Segmentación manual», traza el contorno arrastrando el cursor "
+        "y pulsa «Crear máscara».",
+        "SAM: pulsa «Tomar puntos», haz clic sobre el objeto (uno o varios) y pulsa "
+        "«Segmentar SAM».",
+        "Con SAM se generan 3 máscaras; recórrelas con ◄ ► y deja visible la que quieras usar.",
+    ]),
+    ("🧠", "Clasificación", [
+        "Primero segmenta un objeto (manual o SAM).",
+        "Elige el modelo: AlexNet o AlgarroboNet.",
+        "El resultado aparece como una tarjeta con la clase (Plus / No Plus) y la "
+        "confianza por clase.",
+    ]),
+    ("📍", "Mapa", [
+        "Muestra la ubicación de la toma sobre un mapa satelital, según las "
+        "coordenadas GPS de la imagen.",
+        "Usa «Volver a la imagen» para regresar a la vista de bandas.",
+    ]),
+    ("🎯", "Corrección de bandas", [
+        "Es opcional y sirve para alinear todas las bandas.",
+        "Activa la selección de puntos y marca con clic derecho el mismo punto de "
+        "referencia en cada banda.",
+        "Pulsa «Corregir bandas» para alinearlas.",
+    ]),
+    ("💾", "Guardar y entrenamiento", [
+        "Guardar: exporta los índices y la máscara a un archivo .mat.",
+        "Entrenamiento: configura los parámetros, actualiza la base de datos y "
+        "reentrena los modelos.",
+    ]),
+]
+
 
 def build_main_window(root, state):
     """Construct the main application window and register all widgets in state."""
@@ -223,6 +284,7 @@ def _build_toolbar(ventana, state):
     add("entrenamiento", "⚙  Entrenamiento", lambda: _select_tool(state, "entrenamiento"))
     _sep(inner)
     add("guardar", "💾  Guardar", lambda: _guardar(state))
+    add("ayuda", "❓  Ayuda", lambda: _mostrar_ayuda(state))
 
     state.widgets["_toolbar_buttons"] = buttons
 
@@ -390,7 +452,7 @@ def _select_tool(state, tool):
 
     # Highlight the active toolbar button.
     for key, btn in w.get("_toolbar_buttons", {}).items():
-        if key in ("abrir", "guardar"):
+        if key in ("abrir", "guardar", "ayuda"):
             continue
         active = (key == tool)
         btn.configure(
@@ -711,6 +773,72 @@ def _abrir_mapa(state):
     if mapa_widget:
         mapa_widget.set_position(-state.latitude, -state.longitude, marker=True)
         mapa_widget.set_zoom(18)
+
+
+def _mostrar_ayuda(state):
+    """Open a small, scrollable help window with the end-user usage guide."""
+    parent = state.widgets["_ventana"]
+
+    # Reuse the window if it is already open.
+    existing = state.widgets.get("_ayuda_win")
+    if existing is not None and existing.winfo_exists():
+        existing.deiconify()
+        existing.lift()
+        existing.focus_set()
+        return
+
+    win = tk.Toplevel(parent)
+    win.title("Ayuda — Guía de uso")
+    win.configure(bg=COLORS["bg"])
+    try:
+        win.iconbitmap(str(Settings.APP_ICON))
+    except Exception:
+        pass
+
+    ww, wh = 600, 700
+    wh = min(wh, parent.winfo_screenheight() - 80)
+    x = parent.winfo_rootx() + max(0, (parent.winfo_width() - ww) // 2)
+    y = parent.winfo_rooty() + max(20, (parent.winfo_height() - wh) // 2)
+    win.geometry(f"{ww}x{wh}+{x}+{y}")
+    win.minsize(460, 420)
+    win.transient(parent)
+    state.widgets["_ayuda_win"] = win
+
+    # Header band.
+    header = tk.Frame(win, bg=COLORS["primary"], height=62)
+    header.pack(fill="x")
+    header.pack_propagate(False)
+    ctk.CTkLabel(header, text="📖  Guía de uso", fg_color=COLORS["primary"],
+                 font=ctk.CTkFont(family="Segoe UI", size=18, weight="bold"),
+                 text_color="white").pack(side="left", padx=20)
+
+    # Scrollable body with one card per section.
+    body = ctk.CTkScrollableFrame(win, fg_color=COLORS["bg"])
+    body.pack(fill="both", expand=True, padx=6, pady=6)
+
+    for emoji, title, lines in HELP_SECTIONS:
+        card = ctk.CTkFrame(body, fg_color="#ffffff", corner_radius=12)
+        card.pack(fill="x", padx=8, pady=6)
+        ctk.CTkLabel(card, text=f"{emoji}  {title}", anchor="w",
+                     font=ctk.CTkFont(family="Segoe UI", size=15, weight="bold"),
+                     text_color=COLORS["primary"]).pack(fill="x", padx=14, pady=(12, 6))
+        for ln in lines:
+            row = tk.Frame(card, bg="#ffffff")
+            row.pack(fill="x", padx=16, pady=2)
+            ctk.CTkLabel(row, text="•", fg_color="#ffffff", text_color=COLORS["primary"],
+                         font=ctk.CTkFont(size=12, weight="bold")).pack(side="left", anchor="n")
+            ctk.CTkLabel(row, text=ln, fg_color="#ffffff", justify="left", anchor="w",
+                         wraplength=ww - 90, font=ctk.CTkFont(size=12),
+                         text_color=COLORS["text"]).pack(side="left", padx=(6, 0), fill="x")
+        ctk.CTkLabel(card, text="", height=2, fg_color="#ffffff").pack()
+
+    # Footer with a close button.
+    footer = tk.Frame(win, bg=COLORS["bg"])
+    footer.pack(fill="x", pady=(2, 10))
+    ctk.CTkButton(footer, text="Cerrar", width=140, command=win.destroy,
+                  fg_color=COLORS["primary"], hover_color=COLORS["primary_d"]).pack()
+
+    win.focus_set()
 
 
 def _set_placeholder(label, array):
