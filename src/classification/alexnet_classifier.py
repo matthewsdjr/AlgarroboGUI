@@ -33,18 +33,22 @@ def clasificar_algarrobo_alexnet_onnx(state):
 
 
 def clasificar_alexnet_actualizado(state):
-    """Classify using a fine-tuned AlexNet PyTorch checkpoint."""
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    """Classify with a fine-tuned AlexNet checkpoint.
 
-    alexnet = models.alexnet(pretrained=False)
-    alexnet.classifier[6] = nn.Linear(alexnet.classifier[6].in_features, 2)
-    alexnet.load_state_dict(torch.load(str(Settings.ALEXNET_PTH)))
-    alexnet.to(device)
-    alexnet.eval()
+    Returns a result dict ``{"model", "clase", "probs"}`` (rendered as a card in
+    the UI) or ``None`` when there is no segmented ROI to classify.
+    """
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     img = _get_segmented_image(state)
     if img is None:
-        return
+        return None
+
+    alexnet = models.alexnet(pretrained=False)
+    alexnet.classifier[6] = nn.Linear(alexnet.classifier[6].in_features, 2)
+    alexnet.load_state_dict(torch.load(str(Settings.ALEXNET_PTH), map_location=device))
+    alexnet.to(device)
+    alexnet.eval()
 
     resized = cv2.resize(img, (227, 227), interpolation=cv2.INTER_AREA)
     preprocess = transforms.Compose([transforms.ToTensor()])
@@ -52,11 +56,15 @@ def clasificar_alexnet_actualizado(state):
 
     with torch.no_grad():
         output = alexnet(tensor)
-        _, predicted = torch.max(output, 1)
+        probs = torch.softmax(output, dim=1)[0].cpu().numpy()
 
     class_names = ["NO PLUS", "PLUS"]
-    predicted_class = class_names[predicted.item()]
-    messagebox.showinfo("AlexNet", f"El Algarrobo pertenece a la clase: {predicted_class}")
+    idx = int(np.argmax(probs))
+    return {
+        "model": "AlexNet",
+        "clase": class_names[idx],
+        "probs": {class_names[0]: float(probs[0]), class_names[1]: float(probs[1])},
+    }
 
 
 def _get_segmented_image(state):

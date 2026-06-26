@@ -57,29 +57,37 @@ def clasificar_algarrobonet_onnx(state):
 
 
 def clasificar_algarrobonet_actualizado(state):
-    """Classify using a fine-tuned AlgarroboNet PyTorch checkpoint."""
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    """Classify with a fine-tuned AlgarroboNet checkpoint.
 
-    model = CNNModel().to(device)
-    model.load_state_dict(torch.load(str(Settings.ALGARROBONET_PTH)))
-    model.to(device)
-    model.eval()
+    Returns a result dict ``{"model", "clase", "probs"}`` (rendered as a card in
+    the UI) or ``None`` when there is no segmented ROI to classify.
+    """
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     img = _get_segmented_image(state)
     if img is None:
-        return
+        return None
+
+    model = CNNModel().to(device)
+    model.load_state_dict(torch.load(str(Settings.ALGARROBONET_PTH), map_location=device))
+    model.to(device)
+    model.eval()
 
     resized = cv2.resize(img, (227, 227), interpolation=cv2.INTER_AREA)
     preprocess = transforms.Compose([transforms.ToTensor()])
     tensor = preprocess(resized).unsqueeze(0).to(device)
 
     with torch.no_grad():
-        output = model(tensor)
-        _, predicted = torch.max(output, 1)
+        output = model(tensor)          # forward() already applies softmax
+        probs = output[0].cpu().numpy()
 
     class_names = ["NO PLUS", "PLUS"]
-    predicted_class = class_names[predicted.item()]
-    messagebox.showinfo("AlgarroboNet", f"El Algarrobo pertenece a la clase: {predicted_class}")
+    idx = int(np.argmax(probs))
+    return {
+        "model": "AlgarroboNet",
+        "clase": class_names[idx],
+        "probs": {class_names[0]: float(probs[0]), class_names[1]: float(probs[1])},
+    }
 
 
 def _get_segmented_image(state):

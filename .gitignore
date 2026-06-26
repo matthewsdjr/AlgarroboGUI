@@ -35,3 +35,10 @@ data/IMAGENES/
 
 # Logs
 *.log
+
+# Claude Code local memory (no se sube a git)
+memory/
+
+# Documentación de trabajo en .md: solo se versiona el README
+*.md
+!README.md

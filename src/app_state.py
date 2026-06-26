@@ -18,6 +18,10 @@ class AppState:
 
         # ── Navigation ──────────────────────────────────────────
         self.contar_imagen: int = 0
+        # Band indices actually delivered by the drone for this capture
+        # (0=RGB, 1=R, 2=G, 3=B, 4=RE, 5=NIR). Blue (3) is dropped when the
+        # DJI capture has no MS_B.TIF, so it is never shown in the viewer.
+        self.available_bands: list = [0, 1, 2, 3, 4, 5]
         self.escala = {"x": 0, "y": 0}
         self.limites = {"x_1": 0, "y_1": 0, "x_2": 0, "y_2": 0}
         self.distancia_zoom = {"x": 0, "y": 0}
@@ -55,6 +59,11 @@ class AppState:
         # ── Indices ─────────────────────────────────────────────
         self.Indices = None
         self.puntos_imagen = None
+        # Single-index colormap view (full-resolution float values + metadata
+        # used for the per-pixel cursor readout and the colorbar legend).
+        self.index_vals = None
+        self.index_name = None
+        self.index_def = None
 
         # ── Correction ──────────────────────────────────────────
         self.imagenes_corregidas: list = []

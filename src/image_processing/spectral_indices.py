@@ -2,6 +2,8 @@
 
 import numpy as np
 import cv2
+import matplotlib
+matplotlib.use("Agg")  # headless backend: we only use colormaps, no figures
 from PIL import Image, ImageTk
 
 from config.settings import Settings
@@ -103,3 +105,109 @@ def _update_band_thumbnail(label, ind, channel):
     photo = ImageTk.PhotoImage(image=Image.fromarray(resized))
     label.configure(image=photo)
     label.image = photo
+
+
+# ── Single-index colormap view ────────────────────────────────────────────────
+#
+# Each entry computes a vegetation index at full resolution from the raw bands
+# and renders it with a perceptual colormap plus a colorbar legend. All indices
+# below are ratio-based, so they are insensitive to the absolute band scaling
+# and their values are reported directly (e.g. NDVI ∈ [-1, 1]) under the cursor.
+
+_EPS = 1e-6
+
+
+def _bandas_float(state):
+    """Return the raw bands (R, G, B, RE, NIR) as float32 arrays."""
+    d = state.data_image
+    return (d[1].astype(np.float32), d[2].astype(np.float32),
+            d[3].astype(np.float32), d[4].astype(np.float32),
+            d[5].astype(np.float32))
+
+
+INDEX_DEFS = {
+    "NDVI":  {"func": lambda R, G, B, ER, NIR: (NIR - R) / (NIR + R + _EPS),
+              "cmap": "RdYlGn", "vmin": -1.0, "vmax": 1.0,
+              "desc": "Vigor vegetal (NIR vs Rojo)"},
+    "GNDVI": {"func": lambda R, G, B, ER, NIR: (NIR - G) / (NIR + G + _EPS),
+              "cmap": "RdYlGn", "vmin": -1.0, "vmax": 1.0,
+              "desc": "Contenido de clorofila (NIR vs Verde)"},
+    "NDRE":  {"func": lambda R, G, B, ER, NIR: (NIR - ER) / (NIR + ER + _EPS),
+              "cmap": "RdYlGn", "vmin": -1.0, "vmax": 1.0,
+              "desc": "Vegetación densa (NIR vs Red-Edge)"},
+    "NGRDI": {"func": lambda R, G, B, ER, NIR: (G - R) / (G + R + _EPS),
+              "cmap": "RdYlGn", "vmin": -1.0, "vmax": 1.0,
+              "desc": "Índice verde-rojo (RGB)"},
+    "NGBDI": {"func": lambda R, G, B, ER, NIR: (G - B) / (G + B + _EPS),
+              "cmap": "RdYlGn", "vmin": -1.0, "vmax": 1.0,
+              "desc": "Índice verde-azul (RGB)"},
+    "RVI":   {"func": lambda R, G, B, ER, NIR: NIR / (R + _EPS),
+              "cmap": "YlGn", "vmin": 0.0, "vmax": 8.0,
+              "desc": "Razón simple NIR/Rojo"},
+    "SCCI":  {"func": lambda R, G, B, ER, NIR:
+                  ((NIR - ER) / (NIR + ER + _EPS)) / (((NIR - R) / (NIR + R + _EPS)) + _EPS),
+              "cmap": "viridis", "vmin": 0.0, "vmax": 1.5,
+              "desc": "Índice de condición de clorofila"},
+}
+
+
+def mostrar_indice(state, name):
+    """Compute and render a single vegetation index with a colormap."""
+    from src.image_processing.image_viewer import mostrar_imagen
+
+    if not state.data_image or name not in INDEX_DEFS:
+        return
+    d = INDEX_DEFS[name]
+
+    R, G, B, ER, NIR = _bandas_float(state)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        vals = d["func"](R, G, B, ER, NIR).astype(np.float32)
+    vals = np.nan_to_num(vals, nan=0.0, posinf=d["vmax"], neginf=d["vmin"])
+
+    state.index_vals = vals
+    state.index_name = name
+    state.index_def = d
+
+    cmap = matplotlib.colormaps[d["cmap"]]
+    norm = np.clip((vals - d["vmin"]) / (d["vmax"] - d["vmin"] + _EPS), 0.0, 1.0)
+    rgb = (cmap(norm)[:, :, :3] * 255).astype(np.uint8)
+
+    # Keep the colormapped image at data_image[-1] (len → 7) so the existing
+    # zoom/pan pipeline operates on it, exactly like the legacy combination view.
+    while len(state.data_image) > 6:
+        state.data_image.pop()
+    state.data_image.append(rgb)
+
+    state.escala = {"x": state.b, "y": state.a}
+    state.limites = {"x_1": 0, "y_1": 0, "x_2": 0, "y_2": 0}
+    mostrar_imagen(state, rgb)
+    state.widgets["lbl_img_selec"].configure(text=f"Índice  {name}")
+
+
+def hover_indice(state, event):
+    """Show the index value at the pixel under the cursor (live readout)."""
+    w = state.widgets
+    if w.get("_active_tool") != "indices":
+        return
+    vals = state.index_vals
+    lbl = w.get("lbl_index_value")
+    if vals is None or lbl is None:
+        return
+
+    lim = state.limites
+    fx = int((1600 - lim["x_2"] - lim["x_1"]) * event.x / 800 + lim["x_1"])
+    fy = int((1300 - lim["y_2"] - lim["y_1"]) * event.y / 650 + lim["y_1"])
+    if 0 <= fy < vals.shape[0] and 0 <= fx < vals.shape[1]:
+        lbl.configure(text=f"{state.index_name} = {vals[fy, fx]:.3f}")
+    else:
+        lbl.configure(text=f"{state.index_name} = —")
+
+
+def colorbar_image(name, height=170, width=22):
+    """Return a vertical colorbar PIL image (top = vmax, bottom = vmin)."""
+    d = INDEX_DEFS[name]
+    cmap = matplotlib.colormaps[d["cmap"]]
+    grad = np.linspace(1.0, 0.0, height)
+    rgba = cmap(grad)
+    rgb = (np.tile(rgba[:, None, :3], (1, width, 1)) * 255).astype(np.uint8)
+    return Image.fromarray(rgb)

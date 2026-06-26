@@ -114,14 +114,65 @@ docker build -t algarrobo-interfaz .
 docker run -e DISPLAY=$DISPLAY -v /tmp/.X11-unix:/tmp/.X11-unix algarrobo-interfaz
 ```
 
+## Interfaz de Usuario (Rediseño v2)
+
+La interfaz se rediseñó por completo pasando de una disposición de **dos frames** a un
+**visor único central**, manteniendo intacta toda la lógica de procesamiento.
+
+- **Encabezado institucional fijo**: logo de la UNF a la izquierda, logo de Prociencia a la
+  derecha y el título del proyecto centrado, siempre visible.
+- **Barra de herramientas superior**: acceso a Bandas, Índices, Mapa, Segmentación,
+  Clasificación, Corrección, Entrenamiento y Guardar. Cada herramienta se muestra **dentro
+  del mismo visor**, sin abrir ventanas emergentes.
+- **Visor único** con un **panel contextual** lateral que cambia según la herramienta activa.
+- **Ventana redimensionable** y centrada al iniciar (ya no se abre bloqueada a pantalla
+  completa); el usuario puede ajustar el tamaño o maximizarla.
+
+### Navegación de bandas
+- Se muestran **únicamente las bandas entregadas por el dron** (si una toma DJI no trae la
+  banda azul, esta se oculta). Un contador indica la posición, p. ej. `RED · 2/6`.
+- Navegación con **flechas en pantalla** (junto a la imagen) y con el **teclado (← / →)**.
+  Las flechas aparecen solo en las pestañas donde tiene sentido cambiar de banda (Bandas y
+  Corrección).
+- **Zoom con la rueda del mouse** y **desplazamiento arrastrando** sobre la imagen.
+
+### Índices de vegetación
+- Selección de **un índice** que se renderiza con un **mapa de color** (rojo→verde) y una
+  **leyenda / colorbar** con la escala de valores.
+- **Lectura por píxel en tiempo real**: al pasar el cursor sobre la imagen se muestra el
+  valor del índice en ese punto.
+- Índices disponibles: **NDVI, GNDVI, NDRE, NGRDI, NGBDI, RVI, SCCI**.
+
+### Segmentación
+- **Manual**: se activa desde el panel, se traza el contorno arrastrando el cursor y se crea
+  la máscara, que se muestra en el visor.
+- **SAM**: se marcan **uno o varios puntos** sobre el ROI y, tras segmentar, las **3
+  máscaras** candidatas se muestran en el visor para elegir con las flechas (◄ ►).
+
+### Clasificación
+- El resultado se muestra como una **tarjeta integrada** en el visor (sin ventana
+  emergente): modelo usado (**AlexNet** / **AlgarroboNet**), clase predicha (Plus / No Plus)
+  y **probabilidades por clase** con barras de confianza.
+
+### Mapa
+- Mapa **embebido** dentro del visor (Google Satellite tiles), centrado en las coordenadas
+  GPS extraídas de la imagen, con un botón para volver a la vista de la imagen.
+
+### Corrección geométrica
+- Es **opcional y a iniciativa del usuario** desde la barra superior (se eliminó la consulta
+  automática que aparecía al abrir el programa).
+
 ## Funcionalidades
 
-1. **Login**: Sistema de autenticación con registro de usuarios
-2. **Visualización**: Imágenes multiespectrales con 6 bandas (R, G, B, NIR, RE, RGB)
-3. **Índices Vegetativos**: 24 índices (NDVI, EVI, ExG, NGRDI, etc.)
-4. **Corrección Geométrica**: Alineación de bandas espectrales
-5. **Segmentación Manual**: Trazado libre de ROI
-6. **Segmentación SAM**: Segmentación por puntos con Segment Anything Model
-7. **Clasificación**: AlexNet y AlgarroboNet para clasificar árboles Plus/No Plus
-8. **Entrenamiento**: Interfaz para entrenar modelos con visualización en tiempo real
-9. **Mapa**: Visualización georreferenciada con Google Satellite tiles
+1. **Login**: Sistema de autenticación con registro de usuarios.
+2. **Visualización**: Imágenes multiespectrales (R, G, B, NIR, RE y compuesta RGB), mostrando
+   solo las bandas disponibles.
+3. **Índices Vegetativos**: vista de índice único con colormap, colorbar y valor por píxel
+   (NDVI, GNDVI, NDRE, etc.). Internamente se calculan 24 índices para exportación `.mat`.
+4. **Corrección Geométrica**: alineación de bandas espectrales (opcional).
+5. **Segmentación Manual**: trazado libre de ROI sobre el visor.
+6. **Segmentación SAM**: segmentación multipunto con Segment Anything Model y selección de
+   máscara en el visor.
+7. **Clasificación**: AlexNet y AlgarroboNet con tarjeta de resultado y probabilidades.
+8. **Entrenamiento**: interfaz para entrenar modelos con visualización en tiempo real.
+9. **Mapa**: visualización georreferenciada embebida con Google Satellite tiles.

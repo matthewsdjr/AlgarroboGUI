@@ -9,40 +9,38 @@ from src.image_processing.image_viewer import mostrar_imagen
 
 
 def roi(state):
-    """Toggle the ROI drawing (pencil) tool."""
-    w = state.widgets
+    """Toggle the ROI drawing tool (kept for backward compatibility).
+
+    The floating pencil button was removed from the viewer; manual segmentation
+    is now activated from the Segmentación tool panel.
+    """
     state.flag_roi = not state.flag_roi
-    if state.flag_roi:
-        w["boton_lapiz"].configure(fg_color="red")
-    else:
-        w["boton_lapiz"].configure(fg_color="Teal")
-        state.flag_roi = False
+    btn = state.widgets.get("boton_lapiz")
+    if btn is not None:
+        btn.configure(fg_color="red" if state.flag_roi else "Teal")
 
 
 def mascara(state):
-    """Create a segmentation mask from the drawn contour."""
+    """Create a segmentation mask from the drawn contour and show it in the viewer."""
     a, b = state.a, state.b
     w = state.widgets
+
+    if not state.flag_roi or len(state.contorno) < 3:
+        messagebox.showerror("Error", "Activa el lápiz y traza el contorno del objeto a segmentar.")
+        return
+
     display_img = state.data_image[0].copy()
+    state.mask = np.zeros((a, b), np.uint8)
+    arr = np.array(state.contorno)
+    cv2.fillPoly(state.mask, pts=[arr], color=255)
 
-    if state.flag_roi:
-        state.mask = np.zeros((a, b), np.uint8)
-        arr = np.array(state.contorno)
-        cv2.fillPoly(state.mask, pts=[arr], color=255)
+    state.imagen_segementada = cv2.bitwise_and(display_img, display_img, mask=state.mask)
+    # Use the manual ROI for classification (discard any previous SAM masks).
+    state.save_mask = []
+    state.flag_roi = False  # finished drawing
 
-        state.imagen_segementada = cv2.bitwise_and(display_img, display_img, mask=state.mask)
-
-        seg_resize = cv2.resize(
-            state.imagen_segementada, (int(1600 / 3), int(1300 / 3)),
-            interpolation=cv2.INTER_AREA,
-        )
-
-        img_seg = Image.fromarray(seg_resize)
-        img_seg_tk = ImageTk.PhotoImage(image=img_seg)
-
-        w["label_img_segm"].configure(image=img_seg_tk)
-        w["label_img_segm"].image = img_seg_tk
-        w["lbl_img_selec_seg"].configure(text="Segmentación Manual")
-        messagebox.showinfo("Aviso", "Segmentación correcta")
-    else:
-        messagebox.showerror("Error", "Realice el trazo al objeto a segmentar")
+    mostrar_imagen(state, state.imagen_segementada)
+    w["lbl_img_selec"].configure(text="Segmentación manual")
+    lbl_seg = w.get("lbl_img_selec_seg")
+    if lbl_seg is not None:
+        lbl_seg.configure(text="ROI manual listo para clasificar")

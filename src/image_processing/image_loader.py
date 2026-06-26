@@ -149,8 +149,8 @@ def _cargar_bandas_dji(file_path):
 
 def _abrir_mostrar(state, file_path, popup):
     """Background thread: load all 6 bands and prepare the display."""
-    from src.image_processing.spectral_indices import calcIndices, graficar_indices
-    from src.image_processing.image_viewer import mostrar_imagen, bandas_independientes
+    from src.image_processing.spectral_indices import calcIndices
+    from src.image_processing.image_viewer import mostrar_imagen, etiqueta_banda
 
     w = state.widgets
 
@@ -178,34 +178,23 @@ def _abrir_mostrar(state, file_path, popup):
     state.puntos_visibles = state.data_image[0].copy()
 
     calcIndices(state, state.data_image)
+
+    # Only expose the bands the drone actually delivered. When the DJI capture
+    # has no blue TIF, the synthesised blue band (index 3) stays hidden.
+    state.available_bands = [0, 1, 2, 3, 4, 5] if state.tiene_banda_azul else [0, 1, 2, 4, 5]
+
+    state.contar_imagen = 0
     mostrar_imagen(state, state.data_image[0])
-    w["lbl_img_selec"].configure(text=Settings.INDEX_LABELS[0])
-    bandas_independientes(state, state.data_image)
+    w["lbl_img_selec"].configure(text=etiqueta_banda(state))
 
     state.contorno = []
-    cmb_3_default = "NIR" if not state.tiene_banda_azul else "BLUE"
-    w["cmb_1"].set("RED")
-    w["cmb_2"].set("GREEN")
-    w["cmb_3"].set(cmb_3_default)
-    w["cmb_1"].config(state="normal")
-    w["cmb_2"].config(state="normal")
-    w["cmb_3"].config(state="normal")
-
-    p = Settings.INDEX_LABELS.index("RED") - 1
-    s = Settings.INDEX_LABELS.index("GREEN") - 1
-    t = Settings.INDEX_LABELS.index(cmb_3_default) - 1
-    graficar_indices(state, state.Indices, p, s, t)
-
     state.escala = {"x": state.b, "y": state.a}
     state.limites = {"x_1": 0, "y_1": 0, "x_2": 0, "y_2": 0}
     state.puntos_imagen = np.zeros((6, 2))
 
     popup.destroy()
 
-    filtro_ = messagebox.askquestion("UAV", "¿Desea realizar la corrección geométrica?")
-    if filtro_ == "yes":
-        state.flag_correccion = 1
-        w["ttk_label_imagen"].configure(cursor="plus")
-    else:
-        state.flag_correccion = 0
-        w["ttk_label_imagen"].configure(cursor="arrow")
+    # Geometric correction is now opt-in from the top toolbar ("Corrección de
+    # bandas"); no automatic prompt is shown when the image is opened.
+    state.flag_correccion = 0
+    w["ttk_label_imagen"].configure(cursor="arrow")

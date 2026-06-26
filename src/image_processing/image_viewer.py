@@ -40,19 +40,16 @@ def mostrar_imagen(state, datos):
     w["ttk_label_imagen"].image = visibilito
 
 
-def mostrar_img_seg(state, img):
-    """Render a segmented image into the segmentation panel."""
-    w = state.widgets
-    img_resized = cv2.resize(img, (int(1600 / 3), int(1300 / 3)), interpolation=None)
-    im_mostrar = Image.fromarray(img_resized)
-    visibilito = ImageTk.PhotoImage(image=im_mostrar)
-    w["label_img_segm"].configure(image=visibilito)
-    w["label_img_segm"].image = visibilito
-
-
 def bandas_independientes(state, datos):
-    """Display R, G, B band thumbnails in the left panel."""
+    """Display R, G, B band thumbnails on the legacy (now hidden) band labels.
+
+    Kept for backward compatibility with the geometric-correction routine; the
+    single-viewer layout no longer shows a left thumbnail panel, so the target
+    labels may be absent. Silently skip when they are.
+    """
     w = state.widgets
+    if not all(k in w for k in ("label_capa_red", "label_capa_green", "label_capa_blue")):
+        return
     labels = [w["label_capa_red"], w["label_capa_green"], w["label_capa_blue"]]
     thumb_w, thumb_h = int(1600 / 6), int(1300 / 6)
 
@@ -68,68 +65,85 @@ def bandas_independientes(state, datos):
 
 # ── Navigation ───────────────────────────────────────────────────────────────
 
-def siguiente(state):
-    """Go to next band / image."""
-    from tkinter import messagebox
+def etiqueta_banda(state):
+    """Return the active band label with its position, e.g. 'NIR · 5/6'."""
+    idx = state.contar_imagen
+    name = Settings.INDEX_LABELS[idx] if 0 <= idx < len(Settings.INDEX_LABELS) else str(idx)
+    bands = getattr(state, "available_bands", None) or list(range(len(state.data_image)))
+    if idx in bands:
+        return f"{name} · {bands.index(idx) + 1}/{len(bands)}"
+    return name
+
+
+def _show_band(state):
+    """Render the current band and refresh the label, dropping any index overlay."""
     w = state.widgets
-    state.contar_imagen += 1
-
-    if state.contar_imagen == 6:
-        state.contar_imagen = 0
-        if np.all(state.puntos_imagen[:, :] != 0):
-            messagebox.showinfo("Aviso", "Puntos generados correctamente")
-
+    # Drop a colormapped index image left at data_image[-1] so zoom/pan operate
+    # on the actual band again.
+    while len(state.data_image) > 6:
+        state.data_image.pop()
     state.limites = {"x_1": 0, "y_1": 0, "x_2": 0, "y_2": 0}
+    state.escala = {"x": Settings.IMG_WIDTH, "y": Settings.IMG_HEIGHT}
     mostrar_imagen(state, state.data_image[state.contar_imagen])
-    w["lbl_img_selec"].configure(text=Settings.INDEX_LABELS[state.contar_imagen])
-    state.escala = {"x": 1600, "y": 1300}
-    _mostrar_banda(state)
+    w["lbl_img_selec"].configure(text=etiqueta_banda(state))
+
+
+def mostrar_principal(state):
+    """Reset the viewer to the principal image (band 0)."""
+    if not state.data_image:
+        return
+    state.contar_imagen = 0
+    _show_band(state)
+
+
+def siguiente(state):
+    """Go to the next delivered band (wraps around)."""
+    if not state.data_image:
+        return
+    bands = state.available_bands or [0, 1, 2, 3, 4, 5]
+    cur = state.contar_imagen if state.contar_imagen in bands else bands[0]
+    state.contar_imagen = bands[(bands.index(cur) + 1) % len(bands)]
+    _show_band(state)
 
 
 def anterior(state):
-    """Go to previous band / image."""
-    w = state.widgets
-    state.contar_imagen -= 1
-    if state.contar_imagen <= 0:
-        state.contar_imagen = 0
+    """Go to the previous delivered band (wraps around)."""
+    if not state.data_image:
+        return
+    bands = state.available_bands or [0, 1, 2, 3, 4, 5]
+    cur = state.contar_imagen if state.contar_imagen in bands else bands[0]
+    state.contar_imagen = bands[(bands.index(cur) - 1) % len(bands)]
+    _show_band(state)
 
-    state.limites = {"x_1": 0, "y_1": 0, "x_2": 0, "y_2": 0}
-    mostrar_imagen(state, state.data_image[state.contar_imagen])
-    w["lbl_img_selec"].configure(text=Settings.INDEX_LABELS[state.contar_imagen])
-    state.escala = {"x": 1600, "y": 1300}
-    _mostrar_banda(state)
+
+def mostrar_mascara_sam(state):
+    """Render the currently selected SAM mask in the MAIN viewer (to choose)."""
+    if not state.save_mask:
+        return
+    w = state.widgets
+    m = state.save_mask[state.contar_mask]
+    mostrar_imagen(state, m["mask"])
+    txt = f"Máscara SAM {state.contar_mask + 1}/{len(state.save_mask)} · score {m['score']:.3f}"
+    w["lbl_img_selec"].configure(text=txt)
+    lbl_seg = w.get("lbl_img_selec_seg")
+    if lbl_seg is not None:
+        lbl_seg.configure(text=f"Seleccionada: máscara {state.contar_mask + 1}/{len(state.save_mask)}")
 
 
 def siguiente_seg(state):
-    """Navigate to the next SAM segmentation mask."""
-    state.contar_mask += 1
-    if state.contar_mask >= len(state.save_mask):
-        state.contar_mask = 0
-    mostrar_img_seg(state, state.save_mask[state.contar_mask]["mask"])
-    mostrar_banda_seg(state)
+    """Show the next SAM mask in the viewer."""
+    if not state.save_mask:
+        return
+    state.contar_mask = (state.contar_mask + 1) % len(state.save_mask)
+    mostrar_mascara_sam(state)
 
 
 def anterior_seg(state):
-    """Navigate to the previous SAM segmentation mask."""
-    if state.contar_mask <= 0:
-        state.contar_mask = len(state.save_mask) - 1
-    else:
-        state.contar_mask -= 1
-    mostrar_img_seg(state, state.save_mask[state.contar_mask]["mask"])
-    mostrar_banda_seg(state)
-
-
-def mostrar_banda_seg(state):
-    w = state.widgets
-    num = round(state.save_mask[state.contar_mask]["score"], 3)
-    w["lbl_img_selec_seg"].configure(
-        text=f"Mascara {state.contar_mask + 1} - Score: {num}"
-    )
-
-
-def _mostrar_banda(state):
-    w = state.widgets
-    w["lbl_img_selec"].configure(text=str(Settings.INDEX_LABELS[state.contar_imagen]))
+    """Show the previous SAM mask in the viewer."""
+    if not state.save_mask:
+        return
+    state.contar_mask = (state.contar_mask - 1) % len(state.save_mask)
+    mostrar_mascara_sam(state)
 
 
 # ── Zoom ─────────────────────────────────────────────────────────────────────
@@ -264,13 +278,8 @@ def _collect_sam_point(state, event):
     else:
         state.input_label = np.append(state.input_label, 1)
 
-    if len(state.puntos_sam) > 1:
-        ans = messagebox.askquestion("Aviso", "¿Desea agregar otro punto?")
-        if ans == "no":
-            state.puntos_sam.pop(-1)
-            state.input_label = np.delete(state.input_label, -1)
-            return
-
+    # No prompt: the user adds as many points as desired and then presses
+    # "Segmentar" from the tool panel.
     img_cir_sam = state.data_image[state.contar_imagen].copy()
     for punto in state.puntos_sam:
         img_cir_sam = cv2.circle(img_cir_sam, (int(punto[0]), int(punto[1])), 10, (0, 255, 0), -1)
