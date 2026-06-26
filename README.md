@@ -2,59 +2,99 @@
 
 Interfaz gráfica para el análisis de imágenes multiespectrales de dron, segmentación con SAM (Segment Anything Model) y clasificación de árboles de Algarrobo (*Prosopis pallida*) mediante redes neuronales convolucionales.
 
-## Estructura del Proyecto
+## Interfaz de Usuario
 
-```
-AlgarroboInterfaz/
-├── main.py                           # Punto de entrada de la aplicación
-├── requirements.txt                  # Dependencias de Python
-├── Dockerfile                        # Contenedor Docker
-├── .gitignore
-│
-├── config/                           # Configuración centralizada
-│   ├── settings.py                   # Rutas y constantes globales
-│   ├── usuarios.json                 # Base de datos de usuarios
-│   └── parametros.json               # Hiperparámetros de entrenamiento
-│
-├── assets/                           # Recursos gráficos
-│   ├── icons/                        # Iconos de la interfaz
-│   ├── logos/                        # Logos institucionales
-│   ├── animations/                   # GIFs de carga
-│   └── logo.ico                      # Icono de la aplicación
-│
-├── models/                           # Modelos de ML (no se suben a git)
-│   ├── sam/                          # SAM (sam_vit_b_01ec64.pth)
-│   ├── alexnet/                      # AlexNet (.onnx y .pth)
-│   └── algarrobonet/                 # AlgarroboNet (.onnx y .pth)
-│
-├── data/                             # Datos de entrenamiento (no se suben a git)
-│   └── DataStore227/                 # Imágenes de entrenamiento por combinación
-│
-└── src/                              # Código fuente modular
-    ├── app_state.py                  # Estado global de la aplicación
-    ├── auth/                         # Autenticación de usuarios
-    │   └── auth_service.py
-    ├── ui/                           # Ventanas de la interfaz
-    │   ├── login_window.py           # Ventana de inicio de sesión
-    │   └── main_window.py            # Ventana principal
-    ├── image_processing/             # Procesamiento de imágenes
-    │   ├── image_loader.py           # Carga de imágenes multiespectrales
-    │   ├── image_viewer.py           # Visualización, zoom, navegación
-    │   ├── spectral_indices.py       # Cálculo de índices vegetativos
-    │   └── geometric_correction.py   # Corrección geométrica de bandas
-    ├── segmentation/                 # Segmentación de copas de árboles
-    │   ├── manual_segmentation.py    # Segmentación manual (ROI)
-    │   └── sam_segmentation.py       # Segmentación con SAM
-    ├── classification/               # Clasificación de árboles
-    │   ├── model_loader.py           # Carga de modelos SAM y ONNX
-    │   ├── alexnet_classifier.py     # Clasificación con AlexNet
-    │   └── algarrobonet_classifier.py # Clasificación con AlgarroboNet
-    └── training/                     # Entrenamiento de modelos
-        ├── data_loader.py            # Carga de datasets
-        ├── params_manager.py         # Gestión de hiperparámetros
-        ├── trainer_alexnet.py        # Entrenamiento AlexNet
-        └── trainer_algarrobonet.py   # Entrenamiento AlgarroboNet
-```
+La aplicación se organiza en torno a un **visor único central** y está compuesta por:
+
+- **Encabezado** fijo: logo de la UNF a la izquierda, logo de Prociencia a la derecha y el
+  título del proyecto centrado, siempre visible.
+- **Barra de herramientas** superior con acceso a: *Abrir imagen, Bandas, Índices, Mapa,
+  Segmentación, Clasificación, Corrección, Entrenamiento* y *Guardar*. Cada herramienta se
+  muestra dentro del mismo visor.
+- **Visor central** donde se muestra la imagen, los índices, el mapa o las máscaras.
+- **Panel lateral** contextual que cambia según la herramienta activa.
+- **Pie de página** con la versión de la interfaz y los derechos institucionales.
+
+La ventana se abre centrada y se puede redimensionar o maximizar libremente.
+
+### Abrir una imagen
+
+Pulsa **«Abrir imagen»** y selecciona la toma del dron. Las bandas se cargan
+automáticamente y la vista se posiciona en la imagen principal (compuesta RGB).
+
+### Navegación de bandas
+
+- Se muestran **únicamente las bandas entregadas por el dron** (si una toma no trae la banda
+  azul, esta no aparece). Un contador indica la posición actual, p. ej. `RED · 2/6`.
+- Cambia de banda con las **flechas en pantalla** (junto a la imagen) o con el **teclado
+  (← / →)**. Las flechas están disponibles en las pestañas **Bandas** y **Corrección**.
+- **Zoom** con la rueda del mouse y **desplazamiento** arrastrando sobre la imagen.
+- Al entrar a **Bandas** se muestra siempre la imagen principal.
+
+### Índices de vegetación
+
+1. Abre la pestaña **Índices**.
+2. Elige un índice en el menú desplegable.
+3. El índice se dibuja en el visor con un **mapa de color** (rojo→verde) y una
+   **leyenda / colorbar** con la escala de valores.
+4. Pasa el cursor sobre la imagen para ver, en tiempo real, el **valor del índice en ese
+   píxel**.
+
+Índices disponibles: **NDVI, GNDVI, NDRE, NGRDI, NGBDI, RVI, SCCI**.
+
+### Segmentación
+
+En la pestaña **Segmentación** se muestra la imagen principal. Hay dos modos:
+
+- **Manual**: pulsa *«Segmentación manual»*, traza el contorno del objeto arrastrando el
+  cursor sobre la imagen y pulsa *«Crear máscara»*. La máscara resultante se muestra en el
+  visor.
+- **SAM**: pulsa *«Tomar puntos»* y haz clic sobre el ROI (uno o varios puntos). Luego pulsa
+  *«Segmentar SAM»*: se generan **3 máscaras** candidatas que puedes recorrer con las flechas
+  (◄ ►) directamente en el visor. La máscara visible es la que se usará para clasificar.
+
+### Clasificación
+
+1. Segmenta primero un ROI (manual o SAM).
+2. En la pestaña **Clasificación**, elige el modelo (**AlexNet** o **AlgarroboNet**).
+3. El resultado aparece como una **tarjeta** en el panel: modelo usado, clase predicha
+   (**Plus** / **No Plus**) y las **probabilidades por clase** con barras de confianza.
+
+### Mapa
+
+En la pestaña **Mapa** se muestra, dentro del visor, la **ubicación de la toma** sobre un
+mapa satelital, centrado en las coordenadas GPS extraídas de la imagen. Un botón permite
+**volver a la vista de la imagen**.
+
+### Corrección de bandas
+
+La corrección geométrica alinea todas las bandas espectrales y es **opcional**:
+
+1. Abre la pestaña **Corrección** (se muestra la imagen principal).
+2. Activa la selección de puntos y marca con **clic derecho** el mismo punto de referencia en
+   cada banda (navegando con las flechas).
+3. Pulsa **«Corregir bandas»** para alinearlas.
+
+### Guardar y Entrenamiento
+
+- **Guardar**: exporta los índices y la máscara de segmentación a un archivo `.mat`.
+- **Entrenamiento**: permite configurar los hiperparámetros, actualizar la base de datos de
+  imágenes y reentrenar los modelos AlexNet y AlgarroboNet.
+
+## Funcionalidades
+
+1. **Login**: autenticación con registro de usuarios.
+2. **Visualización**: imágenes multiespectrales (R, G, B, NIR, RE y compuesta RGB), mostrando
+   solo las bandas disponibles.
+3. **Índices de vegetación**: vista de índice único con mapa de color, leyenda y valor por
+   píxel (NDVI, GNDVI, NDRE, etc.).
+4. **Corrección geométrica**: alineación de bandas espectrales.
+5. **Segmentación manual**: trazado libre de ROI.
+6. **Segmentación SAM**: segmentación multipunto con selección de máscara en el visor.
+7. **Clasificación**: AlexNet y AlgarroboNet con tarjeta de resultado y probabilidades.
+8. **Entrenamiento**: configuración y reentrenamiento de los modelos.
+9. **Mapa**: ubicación georreferenciada con tiles satelitales.
+
 
 ## Requisitos Previos
 
@@ -89,15 +129,6 @@ Descargar y colocar los modelos en las carpetas correspondientes:
 | AlgarroboNet ONNX | `netTransfer_algarroboNet.onnx` | `models/algarrobonet/` |
 | AlgarroboNet PyTorch | `cnn_model.pth` | `models/algarrobonet/` |
 
-## Configuración de Assets
-
-Colocar las imágenes de la interfaz en las carpetas correspondientes dentro de `assets/`:
-
-- **`assets/icons/`**: `imagen.png`, `guardar.png`, `pregunta.png`, `map.png`, `copa.png`, `validacion.png`, `machine-learning.png`, `lapiz.png`, `aumentar.png`, `disminuir.png`, `siguiente.png`, `atras.png`, `tijeras.png`, `registrati-blu.png`
-- **`assets/logos/`**: `algarrobo.jpg`, `UNF-844x1024_logo.png`, `PROCIENCIA-LOGO.png`, `PROCIENCIA.jpg`, `unf_fondo.png`
-- **`assets/animations/`**: `abc.gif`
-- **`assets/`**: `logo.ico`
-
 ## Ejecución
 
 ```bash
@@ -114,65 +145,3 @@ docker build -t algarrobo-interfaz .
 docker run -e DISPLAY=$DISPLAY -v /tmp/.X11-unix:/tmp/.X11-unix algarrobo-interfaz
 ```
 
-## Interfaz de Usuario (Rediseño v2)
-
-La interfaz se rediseñó por completo pasando de una disposición de **dos frames** a un
-**visor único central**, manteniendo intacta toda la lógica de procesamiento.
-
-- **Encabezado institucional fijo**: logo de la UNF a la izquierda, logo de Prociencia a la
-  derecha y el título del proyecto centrado, siempre visible.
-- **Barra de herramientas superior**: acceso a Bandas, Índices, Mapa, Segmentación,
-  Clasificación, Corrección, Entrenamiento y Guardar. Cada herramienta se muestra **dentro
-  del mismo visor**, sin abrir ventanas emergentes.
-- **Visor único** con un **panel contextual** lateral que cambia según la herramienta activa.
-- **Ventana redimensionable** y centrada al iniciar (ya no se abre bloqueada a pantalla
-  completa); el usuario puede ajustar el tamaño o maximizarla.
-
-### Navegación de bandas
-- Se muestran **únicamente las bandas entregadas por el dron** (si una toma DJI no trae la
-  banda azul, esta se oculta). Un contador indica la posición, p. ej. `RED · 2/6`.
-- Navegación con **flechas en pantalla** (junto a la imagen) y con el **teclado (← / →)**.
-  Las flechas aparecen solo en las pestañas donde tiene sentido cambiar de banda (Bandas y
-  Corrección).
-- **Zoom con la rueda del mouse** y **desplazamiento arrastrando** sobre la imagen.
-
-### Índices de vegetación
-- Selección de **un índice** que se renderiza con un **mapa de color** (rojo→verde) y una
-  **leyenda / colorbar** con la escala de valores.
-- **Lectura por píxel en tiempo real**: al pasar el cursor sobre la imagen se muestra el
-  valor del índice en ese punto.
-- Índices disponibles: **NDVI, GNDVI, NDRE, NGRDI, NGBDI, RVI, SCCI**.
-
-### Segmentación
-- **Manual**: se activa desde el panel, se traza el contorno arrastrando el cursor y se crea
-  la máscara, que se muestra en el visor.
-- **SAM**: se marcan **uno o varios puntos** sobre el ROI y, tras segmentar, las **3
-  máscaras** candidatas se muestran en el visor para elegir con las flechas (◄ ►).
-
-### Clasificación
-- El resultado se muestra como una **tarjeta integrada** en el visor (sin ventana
-  emergente): modelo usado (**AlexNet** / **AlgarroboNet**), clase predicha (Plus / No Plus)
-  y **probabilidades por clase** con barras de confianza.
-
-### Mapa
-- Mapa **embebido** dentro del visor (Google Satellite tiles), centrado en las coordenadas
-  GPS extraídas de la imagen, con un botón para volver a la vista de la imagen.
-
-### Corrección geométrica
-- Es **opcional y a iniciativa del usuario** desde la barra superior (se eliminó la consulta
-  automática que aparecía al abrir el programa).
-
-## Funcionalidades
-
-1. **Login**: Sistema de autenticación con registro de usuarios.
-2. **Visualización**: Imágenes multiespectrales (R, G, B, NIR, RE y compuesta RGB), mostrando
-   solo las bandas disponibles.
-3. **Índices Vegetativos**: vista de índice único con colormap, colorbar y valor por píxel
-   (NDVI, GNDVI, NDRE, etc.). Internamente se calculan 24 índices para exportación `.mat`.
-4. **Corrección Geométrica**: alineación de bandas espectrales (opcional).
-5. **Segmentación Manual**: trazado libre de ROI sobre el visor.
-6. **Segmentación SAM**: segmentación multipunto con Segment Anything Model y selección de
-   máscara en el visor.
-7. **Clasificación**: AlexNet y AlgarroboNet con tarjeta de resultado y probabilidades.
-8. **Entrenamiento**: interfaz para entrenar modelos con visualización en tiempo real.
-9. **Mapa**: visualización georreferenciada embebida con Google Satellite tiles.

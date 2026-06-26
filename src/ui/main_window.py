@@ -62,6 +62,8 @@ COLORS = {
 DISP_W = int(Settings.IMG_WIDTH * (1 - Settings.DISPLAY_FACTOR))   # 800
 DISP_H = int(Settings.IMG_HEIGHT * (1 - Settings.DISPLAY_FACTOR))  # 650
 
+APP_VERSION = "2.0"
+
 # Full institutional title (kept verbatim from the project).
 TITULO = (
     '"Redes Convolucionales y Combinacionales de Bandas Espectrales e Índices '
@@ -132,6 +134,7 @@ def build_main_window(root, state):
     _build_header(ventana, icons, logo_h)
     _build_toolbar(ventana, state)
     _build_content(ventana, state, icons)
+    _build_footer(ventana)
 
     # ── Keyboard navigation (← / →) ──────────────────────────────
     ventana.bind("<Left>", lambda e: _nav_band(state, anterior))
@@ -167,6 +170,19 @@ def _build_header(ventana, icons, logo_h):
         row=0, column=2, padx=20, pady=8, sticky="e")
 
     tk.Frame(ventana, bg="#dfe3e6", height=1).grid(row=1, column=0, sticky="ew")
+
+
+def _build_footer(ventana):
+    """Fixed footer with the interface version and institutional rights."""
+    footer = tk.Frame(ventana, bg=COLORS["header"])
+    footer.grid(row=3, column=0, sticky="ew")
+    tk.Frame(footer, bg="#dfe3e6", height=1).pack(fill="x")
+    ctk.CTkLabel(
+        footer,
+        text=f"Versión {APP_VERSION}  ·  © Universidad Nacional de Frontera",
+        font=ctk.CTkFont(family="Segoe UI", size=10),
+        text_color=COLORS["muted"], fg_color=COLORS["header"],
+    ).pack(pady=3)
 
 
 def _build_toolbar(ventana, state):
@@ -365,8 +381,8 @@ def _select_tool(state, tool):
         w["_view_map"].tkraise()
     else:
         w["_view_image"].tkraise()
-        # Bandas and Segmentación always open on the principal image.
-        if tool in ("bandas", "segmentacion"):
+        # Bandas, Segmentación and Corrección always open on the principal image.
+        if tool in ("bandas", "segmentacion", "correccion"):
             mostrar_principal(state)
 
     # Arrows only where changing band makes sense (Bandas / Corrección).
