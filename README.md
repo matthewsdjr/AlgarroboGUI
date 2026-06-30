@@ -99,8 +99,71 @@ La corrección geométrica alinea todas las bandas espectrales y es **opcional**
 ## Requisitos Previos
 
 - Python 3.10+
-- CUDA (GPU NVIDIA) recomendado para SAM y entrenamiento
 - Modelos descargados en `models/`
+
+## Recursos Computacionales
+
+La interfaz puede ejecutarse en **CPU** (todo funciona, pero la segmentación SAM y el
+entrenamiento son lentos) o acelerarse con una **GPU NVIDIA con CUDA**, que es lo
+recomendado para SAM y para reentrenar los modelos.
+
+### Versiones del entorno
+
+El entorno se ha probado y validado con las siguientes versiones:
+
+| Componente | Versión |
+|---|---|
+| Python | 3.10+ |
+| PyTorch | 2.4.1 (build `+cu118`) |
+| torchvision | 0.19.1 (build `+cu118`) |
+| CUDA Toolkit (runtime de PyTorch) | 11.8 |
+| cuDNN | 9.1 |
+| ONNX Runtime (GPU) | 1.16.3 |
+
+> La detección de GPU es automática: `config/settings.py` selecciona `cuda` si
+> `torch.cuda.is_available()`, y recae en `cpu` en caso contrario. No es necesario
+> configurar nada manualmente.
+
+### Requisitos mínimos (modo CPU)
+
+| Recurso | Mínimo |
+|---|---|
+| CPU | 4 núcleos x86-64 |
+| RAM | 8 GB |
+| Disco | ~3 GB libres (dependencias + modelos) |
+| GPU | No requerida (SAM y entrenamiento funcionan en CPU, pero lentos) |
+
+### Requisitos recomendados (con GPU)
+
+| Recurso | Recomendado |
+|---|---|
+| CPU | 8 núcleos x86-64 |
+| RAM | 16 GB |
+| Disco | ~5 GB libres (SSD) |
+| GPU | NVIDIA con **≥ 4 GB de VRAM** y soporte CUDA 11.8 |
+| Driver NVIDIA | Compatible con CUDA 11.8 (≥ 520) |
+
+> Entorno de referencia de desarrollo: NVIDIA **Quadro RTX 6000** (24 GB VRAM),
+> driver con CUDA 11.8. Una tarjeta de ese nivel ejecuta SAM y el entrenamiento con
+> holgura; 4–6 GB de VRAM son suficientes para la inferencia de SAM ViT-B y la
+> clasificación con AlexNet/AlgarroboNet.
+
+### Instalación de PyTorch con CUDA
+
+PyTorch y torchvision **no** están en `requirements.txt` (dependen del hardware). Para
+instalar la versión con CUDA 11.8:
+
+```bash
+pip install torch==2.4.1+cu118 torchvision==0.19.1+cu118 --extra-index-url https://download.pytorch.org/whl/cu118
+pip install onnxruntime-gpu==1.16.3
+```
+
+Para una instalación **solo CPU** (sin GPU NVIDIA):
+
+```bash
+pip install torch==2.4.1 torchvision==0.19.1
+pip install onnxruntime==1.16.3
+```
 
 ## Instalación
 
